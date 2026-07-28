@@ -13,7 +13,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
