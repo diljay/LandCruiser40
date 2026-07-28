@@ -12,6 +12,7 @@
 #if SOC_MIPI_DSI_SUPPORTED
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_mipi_dsi.h"
+#include "esp_idf_version.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,7 +74,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
     {                                                    \
         .bus_id = 0,                                     \
         .num_data_lanes = 2,                             \
-        .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,     \
+        .phy_clk_src = 0,                                \
         .lane_bit_rate_mbps = 750,                       \
     }
 
@@ -89,7 +90,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
     }
 
 /**
- * @brief MIPI DPI configuration structure
+ * @brief MIPI DPI configuration structure (ESP-IDF < 6.0)
  *
  * @note  refresh_rate = (dpi_clock_freq_mhz * 1000000) / (h_res + hsync_pulse_width + hsync_back_porch + hsync_front_porch)
  *                                                      / (v_res + vsync_pulse_width + vsync_back_porch + vsync_front_porch)
@@ -97,6 +98,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
  * @param[in] px_format Pixel format of the panel
  *
  */
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
 #define JD9165_1024_600_PANEL_60HZ_DPI_CONFIG(px_format) \
     {                                                    \
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,     \
@@ -115,6 +117,40 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
             .vsync_front_porch = 12,                     \
         },                                               \
         .flags.use_dma2d = true,                         \
+    }
+#endif
+
+/**
+ * @brief MIPI DPI configuration structure (ESP-IDF >= 6.0)
+ *
+ * @note  Starting from ESP-IDF v6.0, the pixel format field was renamed to
+ *        `in_color_format` and DMA2D can no longer be enabled through the config
+ *        flag. Enable it instead by calling `esp_lcd_dpi_panel_enable_dma2d()`
+ *        after the panel has been created.
+ *
+ * @note  refresh_rate = (dpi_clock_freq_mhz * 1000000) / (h_res + hsync_pulse_width + hsync_back_porch + hsync_front_porch)
+ *                                                      / (v_res + vsync_pulse_width + vsync_back_porch + vsync_front_porch)
+ *
+ * @param[in] color_format Input color format of the panel
+ *
+ */
+#define JD9165_1024_600_PANEL_60HZ_DPI_CONFIG_CF(color_format) \
+    {                                                    \
+        .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,     \
+        .dpi_clock_freq_mhz = 54,                        \
+        .virtual_channel = 0,                            \
+        .in_color_format = color_format,                 \
+        .num_fbs = 1,                                    \
+        .video_timing = {                                \
+            .h_size = 1024,                              \
+            .v_size = 600,                               \
+            .hsync_back_porch = 160,                     \
+            .hsync_pulse_width = 40,                     \
+            .hsync_front_porch = 160,                    \
+            .vsync_back_porch = 23,                      \
+            .vsync_pulse_width = 10,                      \
+            .vsync_front_porch = 12,                     \
+        },                                               \
     }
 
 #ifdef __cplusplus
