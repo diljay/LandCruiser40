@@ -8,5 +8,5 @@ set(EXTRA_COMPONENT_DIRS
     ./common_components
     )
     
-add_compile_options(-Wno-format)
+add_compile_options(-Wno-format -Wno-error=attributes)
 project(LandCruiser40)
