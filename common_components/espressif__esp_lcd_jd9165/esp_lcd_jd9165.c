@@ -80,6 +80,22 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
         break;
     }
 
+    // COLMOD must match the DPI peripheral's pixel format, otherwise the panel misinterprets the pixel stream
+    switch (panel_dev_config->bits_per_pixel) {
+    case 16:
+        jd9165->colmod_val = 0x55;
+        break;
+    case 18:
+        jd9165->colmod_val = 0x66;
+        break;
+    case 24:
+        jd9165->colmod_val = 0x77;
+        break;
+    default:
+        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported bits_per_pixel");
+        break;
+    }
+
     jd9165->io = io;
     jd9165->init_cmds = vendor_config->init_cmds;
     jd9165->init_cmds_size = vendor_config->init_cmds_size;
@@ -216,6 +232,10 @@ static esp_err_t panel_jd9165_init(esp_lcd_panel_t *panel)
         jd9165->madctl_val,
     }, 1), TAG, "send command failed");
 
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_COLMOD, (uint8_t[]) {
+        jd9165->colmod_val,
+    }, 1), TAG, "send command failed");
+
     // vendor specific initialization, it can be different between manufacturers
     // should consult the LCD supplier for initialization sequence code
     if (jd9165->init_cmds) {
@@ -233,6 +253,10 @@ static esp_err_t panel_jd9165_init(esp_lcd_panel_t *panel)
             case LCD_CMD_MADCTL:
                 is_cmd_overwritten = true;
                 jd9165->madctl_val = ((uint8_t *)init_cmds[i].data)[0];
+                break;
+            case LCD_CMD_COLMOD:
+                is_cmd_overwritten = true;
+                jd9165->colmod_val = ((uint8_t *)init_cmds[i].data)[0];
                 break;
             default:
                 is_cmd_overwritten = false;

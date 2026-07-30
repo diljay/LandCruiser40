@@ -33,7 +33,11 @@
 /* LCD display color bytes endianess */
 #define BSP_LCD_BIGENDIAN           (0)
 /* LCD display color bits */
+#if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
+#define BSP_LCD_BITS_PER_PIXEL      (24)
+#else
 #define BSP_LCD_BITS_PER_PIXEL      (16)
+#endif
 /* LCD display color space */
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 /* Starting from ESP-IDF v6.0, `color_space` + `rgb_endian` were replaced by `rgb_ele_order` */

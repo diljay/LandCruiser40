@@ -455,7 +455,7 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         },
     };
     esp_lcd_panel_dev_config_t lcd_dev_config = {
-        .bits_per_pixel = 16,
+        .bits_per_pixel = BSP_LCD_BITS_PER_PIXEL,
         .rgb_ele_order = BSP_LCD_COLOR_SPACE,
         .reset_gpio_num = BSP_LCD_RST,
         .vendor_config = &vendor_config,
@@ -487,7 +487,7 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     const esp_lcd_panel_dev_config_t lcd_dev_config = {
         .reset_gpio_num = BSP_LCD_RST,
         .rgb_ele_order = BSP_LCD_COLOR_SPACE,
-        .bits_per_pixel = 16,
+        .bits_per_pixel = BSP_LCD_BITS_PER_PIXEL,
         .vendor_config = &vendor_config,
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_ili9881c(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel ILI9881C failed");

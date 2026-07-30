@@ -155,8 +155,18 @@
          }
      }
  
-     /* Read status and config info */
-     ret = touch_gt911_read_cfg(esp_lcd_touch_gt911);
+     /* Read status and config info.
+      * On a cold power-up the GT911 can take longer than usual to finish its
+      * internal boot before it reliably ACKs on I2C, so retry a few times
+      * with a delay instead of failing (and aborting the whole system via
+      * BSP_ERROR_CHECK) on the very first attempt. */
+     for (int retry = 0; retry < 5; retry++) {
+         ret = touch_gt911_read_cfg(esp_lcd_touch_gt911);
+         if (ret == ESP_OK) {
+             break;
+         }
+         vTaskDelay(pdMS_TO_TICKS(50));
+     }
      ESP_GOTO_ON_ERROR(ret, err, TAG, "GT911 init failed");
  
  err:
@@ -375,12 +385,14 @@
          ESP_RETURN_ON_ERROR(gpio_set_level(tp->config.rst_gpio_num, tp->config.levels.reset), TAG, "GPIO set level error!");
          vTaskDelay(pdMS_TO_TICKS(10));
          ESP_RETURN_ON_ERROR(gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset), TAG, "GPIO set level error!");
-         vTaskDelay(pdMS_TO_TICKS(10));
+         /* GT911 needs time to complete its internal boot after reset release,
+          * especially right after a cold power-up, before I2C is reliable. */
+         vTaskDelay(pdMS_TO_TICKS(100));
      }
- 
+
      return ESP_OK;
  }
- 
+
  static esp_err_t touch_gt911_read_cfg(esp_lcd_touch_handle_t tp)
  {
      uint8_t buf[4];
