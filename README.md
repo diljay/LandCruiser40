@@ -1,7 +1,6 @@
 # LVGL Demo v9.5.0
 
-This example demonstrates how to port LVGL v9.5.0.
-The example utilizes the development board's MIPI-DSI interface.
+This project runs on an ESP32-P4 Development Board with a 7-inch LCD TouchScreen and onboard ESP32-C6, using LVGL v9.5.0 and ESP-IDF v6.0.2.
 
 ## Getting Started
 
@@ -32,8 +31,9 @@ source /Users/<username>/.espressif/v6.0.2/esp-idf/export.sh
 
 #### Update Chip Revision Info
 ```
-idf.py menuconfig`` and go to ``Component Config > Hardware Settings > Chip revision
+idf.py menuconfig
 ```
+Then go to ``Component Config > Hardware Settings > Chip revision``.
 
 Update the chip revision based on your chip's revision version.
 https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/01-chip-identification/index.html
