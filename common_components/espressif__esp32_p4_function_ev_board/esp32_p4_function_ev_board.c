@@ -36,6 +36,17 @@
 
 static const char *TAG = "ESP32_P4_EV";
 
+// TEMPORARY DIAGNOSTIC TOGGLE: set to 1 to drive the DSI host's hardware pattern
+// generator instead of the real framebuffer, to isolate DPI/panel color issues
+// from LVGL/DMA2D issues. Set back to 0 (or remove) once diagnosis is complete.
+#define BSP_DIAG_DSI_TEST_PATTERN 0
+// TEMPORARY DIAGNOSTIC TOGGLE: set to 0 to skip esp_lcd_dpi_panel_enable_dma2d(),
+// forcing the LVGL flush copy to fall back to plain CPU memcpy. If colors/lines
+// clear up with this at 0, the bug is in the DMA2D fbcpy path. Set back to 1
+// (or remove the guard) once diagnosis is complete.
+// Ruled out: CPU memcpy copy still showed wrong colors, so DMA2D is not the cause.
+#define BSP_DIAG_ENABLE_DMA2D 1
+
 #if (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 static lv_indev_t *disp_indev = NULL;
 #endif // (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
@@ -461,12 +472,19 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         .vendor_config = &vendor_config,
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_jd9165(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel JD9165 failed");
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) && BSP_DIAG_ENABLE_DMA2D
     // Since ESP-IDF v6.0 DMA2D is enabled through a dedicated API instead of the DPI config flag
     ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(disp_panel), err, TAG, "LCD panel enable DMA2D failed");
 #endif
     ESP_GOTO_ON_ERROR(esp_lcd_panel_reset(disp_panel), err, TAG, "LCD panel reset failed");
     ESP_GOTO_ON_ERROR(esp_lcd_panel_init(disp_panel), err, TAG, "LCD panel init failed");
+#if BSP_DIAG_DSI_TEST_PATTERN
+    // TEMPORARY DIAGNOSTIC: drive the DSI host's own pattern generator, bypassing
+    // LVGL/DMA2D/framebuffer entirely. If colors/lines are still wrong here, the
+    // bug is in the DPI color-coding <-> panel COLMOD/MADCTL path, not the app.
+    // Remove this block once the diagnosis is complete.
+    ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_set_pattern(disp_panel, MIPI_DSI_PATTERN_BAR_VERTICAL), err, TAG, "LCD panel set test pattern failed");
+#endif
 #else
     // create ILI9881C control panel
     ESP_LOGI(TAG, "Install ILI9881C LCD control panel");
@@ -618,8 +636,16 @@ static lv_display_t *bsp_display_lcd_init(const bsp_display_cfg_t *cfg)
 static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
 {
     esp_lcd_touch_handle_t tp;
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_touch_new(NULL, &tp));
-    assert(tp);
+    // Touch is a non-critical peripheral: if it fails to come up (e.g. GT911
+    // not responding within its cold-boot window), log it and continue
+    // without touch input rather than aborting the whole system. This is
+    // deliberately NOT routed through BSP_ERROR_CHECK_RETURN_NULL/assert,
+    // which would be fatal regardless of this reasoning.
+    esp_err_t ret = bsp_touch_new(NULL, &tp);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Touch controller init failed (0x%x), continuing without touch input", ret);
+        return NULL;
+    }
 
     /* Add touch input (for selected screen) */
     const lvgl_port_touch_cfg_t touch_cfg = {
@@ -628,6 +654,37 @@ static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
     };
 
     return lvgl_port_add_touch(&touch_cfg);
+}
+
+#define BSP_TOUCH_RETRY_TASK_PERIOD_MS   (2000)
+#define BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS (10) // ~20s of retrying total
+
+// Retries touch controller bring-up in the background after a failed
+// bsp_display_indev_init() at boot. The GT911 can occasionally take longer
+// than any bounded startup timeout to become ready after a true cold
+// power-up; this lets touch come online a little late instead of staying
+// unavailable for the whole session.
+static void bsp_touch_retry_task(void *arg)
+{
+    lv_display_t *disp = (lv_display_t *)arg;
+    lv_indev_t *indev = NULL;
+
+    for (int attempt = 0; attempt < BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS && indev == NULL; attempt++) {
+        vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
+        if (bsp_display_lock(0)) {
+            indev = bsp_display_indev_init(disp);
+            bsp_display_unlock();
+        }
+    }
+
+    if (indev) {
+        disp_indev = indev;
+        ESP_LOGI(TAG, "Touch controller came up on retry, input now active");
+    } else {
+        ESP_LOGW(TAG, "Touch controller still not responding, giving up retrying");
+    }
+
+    vTaskDelete(NULL);
 }
 
 lv_display_t *bsp_display_start(void)
@@ -660,7 +717,15 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg)
 
     BSP_NULL_CHECK(disp = bsp_display_lcd_init(cfg), NULL);
 
-    BSP_NULL_CHECK(disp_indev = bsp_display_indev_init(disp), NULL);
+    // Touch is optional: bsp_display_indev_init() already logs and returns
+    // NULL on failure instead of aborting, so don't route it through
+    // BSP_NULL_CHECK here (that would still be fatal when CONFIG_BSP_ERROR_CHECK
+    // is enabled). A NULL disp_indev just means no touch input this session.
+    disp_indev = bsp_display_indev_init(disp);
+    if (disp_indev == NULL) {
+        ESP_LOGW(TAG, "Display started without touch input, will keep retrying in the background");
+        xTaskCreate(bsp_touch_retry_task, "touch_retry", 4096, disp, tskIDLE_PRIORITY + 1, NULL);
+    }
 
     return disp;
 }
