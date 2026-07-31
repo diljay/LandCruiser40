@@ -45,6 +45,7 @@ static esp_err_t panel_jd9165_reset(esp_lcd_panel_t *panel);
 static esp_err_t panel_jd9165_invert_color(esp_lcd_panel_t *panel, bool invert_color_data);
 static esp_err_t panel_jd9165_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y);
 static esp_err_t panel_jd9165_disp_on_off(esp_lcd_panel_t *panel, bool on_off);
+static esp_err_t panel_jd9165_swap_xy(esp_lcd_panel_t *panel, bool swap_axes);
 
 esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config,
                                    esp_lcd_panel_handle_t *ret_panel)
@@ -118,6 +119,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
     panel_handle->mirror = panel_jd9165_mirror;
     panel_handle->invert_color = panel_jd9165_invert_color;
     panel_handle->disp_on_off = panel_jd9165_disp_on_off;
+    panel_handle->swap_xy = panel_jd9165_swap_xy;
     panel_handle->user_data = jd9165;
     *ret_panel = panel_handle;
     ESP_LOGD(TAG, "new jd9165 panel @%p", jd9165);
@@ -360,6 +362,19 @@ static esp_err_t panel_jd9165_disp_on_off(esp_lcd_panel_t *panel, bool on_off)
         command = LCD_CMD_DISPOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");
+    return ESP_OK;
+}
+
+static esp_err_t panel_jd9165_swap_xy(esp_lcd_panel_t *panel, bool swap_axes)
+{
+    // This panel is driven in MIPI DSI video (DPI) mode, which streams
+    // pixels in a fixed raster order; an actual axis swap would require
+    // rotating the scanout itself, which isn't supported here (use LVGL's
+    // sw_rotate or PPA-based rotation instead). "No swap" is a no-op though,
+    // so it succeeds instead of being rejected like a genuine swap request.
+    if (swap_axes) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
     return ESP_OK;
 }
 #endif

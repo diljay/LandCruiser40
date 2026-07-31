@@ -694,15 +694,8 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg)
 
     assert(cfg != NULL);
     BSP_ERROR_CHECK_RETURN_NULL(lvgl_port_init(&cfg->lvgl_port_cfg));
-
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_display_brightness_init());
-
     BSP_NULL_CHECK(disp = bsp_display_lcd_init(cfg), NULL);
 
-    // Touch is optional: bsp_display_indev_init() already logs and returns
-    // NULL on failure instead of aborting, so don't route it through
-    // BSP_NULL_CHECK here (that would still be fatal when CONFIG_BSP_ERROR_CHECK
-    // is enabled). A NULL disp_indev just means no touch input this session.
     disp_indev = bsp_display_indev_init(disp);
     if (disp_indev == NULL) {
         ESP_LOGW(TAG, "Display started without touch input, will keep retrying in the background");
