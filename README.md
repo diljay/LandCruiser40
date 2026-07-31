@@ -30,7 +30,7 @@ This example demonstrates how to port LVGL v9 and conduct performance testing us
 
 ### ESP-IDF Required
 
-- This example supports ESP-IDF release/v5.3 and later branches. By default, it runs on ESP-IDF release/v5.3.
+- This example supports ESP-IDF release/v5.3 and later branches, including ESP-IDF v6.0.x. It has been upgraded to build on ESP-IDF release/v6.0 (tested with v6.0.2).
 - Please follow the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html) to set up the development environment. **We highly recommend** you [Build Your First Project](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#build-your-first-project) to get familiar with ESP-IDF and make sure the environment is set up correctly.
 
 ### Get the esp-dev-kits Repository

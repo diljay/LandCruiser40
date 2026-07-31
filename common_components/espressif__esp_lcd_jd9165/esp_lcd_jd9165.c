@@ -45,6 +45,7 @@ static esp_err_t panel_jd9165_reset(esp_lcd_panel_t *panel);
 static esp_err_t panel_jd9165_invert_color(esp_lcd_panel_t *panel, bool invert_color_data);
 static esp_err_t panel_jd9165_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y);
 static esp_err_t panel_jd9165_disp_on_off(esp_lcd_panel_t *panel, bool on_off);
+static esp_err_t panel_jd9165_swap_xy(esp_lcd_panel_t *panel, bool swap_axes);
 
 esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config,
                                    esp_lcd_panel_handle_t *ret_panel)
@@ -68,7 +69,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
     }
 
-    switch (panel_dev_config->color_space) {
+    switch (panel_dev_config->rgb_ele_order) {
     case LCD_RGB_ELEMENT_ORDER_RGB:
         jd9165->madctl_val = 0;
         break;
@@ -77,6 +78,22 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
         break;
     default:
         ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported color space");
+        break;
+    }
+
+    // COLMOD must match the DPI peripheral's pixel format, otherwise the panel misinterprets the pixel stream
+    switch (panel_dev_config->bits_per_pixel) {
+    case 16:
+        jd9165->colmod_val = 0x55;
+        break;
+    case 18:
+        jd9165->colmod_val = 0x66;
+        break;
+    case 24:
+        jd9165->colmod_val = 0x77;
+        break;
+    default:
+        ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported bits_per_pixel");
         break;
     }
 
@@ -102,6 +119,7 @@ esp_err_t esp_lcd_new_panel_jd9165(const esp_lcd_panel_io_handle_t io, const esp
     panel_handle->mirror = panel_jd9165_mirror;
     panel_handle->invert_color = panel_jd9165_invert_color;
     panel_handle->disp_on_off = panel_jd9165_disp_on_off;
+    panel_handle->swap_xy = panel_jd9165_swap_xy;
     panel_handle->user_data = jd9165;
     *ret_panel = panel_handle;
     ESP_LOGD(TAG, "new jd9165 panel @%p", jd9165);
@@ -216,6 +234,10 @@ static esp_err_t panel_jd9165_init(esp_lcd_panel_t *panel)
         jd9165->madctl_val,
     }, 1), TAG, "send command failed");
 
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_COLMOD, (uint8_t[]) {
+        jd9165->colmod_val,
+    }, 1), TAG, "send command failed");
+
     // vendor specific initialization, it can be different between manufacturers
     // should consult the LCD supplier for initialization sequence code
     if (jd9165->init_cmds) {
@@ -233,6 +255,10 @@ static esp_err_t panel_jd9165_init(esp_lcd_panel_t *panel)
             case LCD_CMD_MADCTL:
                 is_cmd_overwritten = true;
                 jd9165->madctl_val = ((uint8_t *)init_cmds[i].data)[0];
+                break;
+            case LCD_CMD_COLMOD:
+                is_cmd_overwritten = true;
+                jd9165->colmod_val = ((uint8_t *)init_cmds[i].data)[0];
                 break;
             default:
                 is_cmd_overwritten = false;
@@ -336,6 +362,19 @@ static esp_err_t panel_jd9165_disp_on_off(esp_lcd_panel_t *panel, bool on_off)
         command = LCD_CMD_DISPOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");
+    return ESP_OK;
+}
+
+static esp_err_t panel_jd9165_swap_xy(esp_lcd_panel_t *panel, bool swap_axes)
+{
+    // This panel is driven in MIPI DSI video (DPI) mode, which streams
+    // pixels in a fixed raster order; an actual axis swap would require
+    // rotating the scanout itself, which isn't supported here (use LVGL's
+    // sw_rotate or PPA-based rotation instead). "No swap" is a no-op though,
+    // so it succeeds instead of being rejected like a genuine swap request.
+    if (swap_axes) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
     return ESP_OK;
 }
 #endif

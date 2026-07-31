@@ -38,6 +38,7 @@ static const char *TAG = "ESP32_P4_EV";
 
 #if (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 static lv_indev_t *disp_indev = NULL;
+static lv_display_t *s_disp = NULL;
 #endif // (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 
 sdmmc_card_t *bsp_sdcard = NULL;    // Global uSD card handler
@@ -413,7 +414,7 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     esp_lcd_dsi_bus_config_t bus_config = {
         .bus_id = 0,
         .num_data_lanes = BSP_LCD_MIPI_DSI_LANE_NUM,
-        .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
+        .phy_clk_src = 0, // 0 = let the driver choose the default PHY clock source (portable across ESP-IDF 5.x and 6.0)
         .lane_bit_rate_mbps = 900,
     };
     ESP_RETURN_ON_ERROR(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus), TAG, "New DSI bus init failed");
@@ -430,13 +431,21 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
 
     esp_lcd_panel_handle_t disp_panel = NULL;
 #if CONFIG_BSP_LCD_TYPE_1024_600
-    // create EK79007 control panel
-    ESP_LOGI(TAG, "Install EK79007 LCD control panel");
+    // create JD9165 control panel
+    ESP_LOGI(TAG, "Install JD9165 LCD control panel");
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
-    esp_lcd_dpi_panel_config_t dpi_config = EK79007_1024_600_PANEL_60HZ_CONFIG(LCD_COLOR_PIXEL_FORMAT_RGB888);
+    esp_lcd_dpi_panel_config_t dpi_config = JD9165_1024_600_PANEL_60HZ_DPI_CONFIG_CF(LCD_COLOR_FMT_RGB888);
+#else
+    esp_lcd_dpi_panel_config_t dpi_config = JD9165_1024_600_PANEL_60HZ_DPI_CONFIG_CF(LCD_COLOR_FMT_RGB565);
+#endif
+#else
+#if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
+    esp_lcd_dpi_panel_config_t dpi_config = JD9165_1024_600_PANEL_60HZ_DPI_CONFIG(LCD_COLOR_PIXEL_FORMAT_RGB888);
 #else
     esp_lcd_dpi_panel_config_t dpi_config = JD9165_1024_600_PANEL_60HZ_DPI_CONFIG(LCD_COLOR_PIXEL_FORMAT_RGB565);
+#endif
 #endif
     dpi_config.num_fbs = CONFIG_BSP_LCD_DPI_BUFFER_NUMS;
 
@@ -447,12 +456,16 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         },
     };
     esp_lcd_panel_dev_config_t lcd_dev_config = {
-        .bits_per_pixel = 16,
+        .bits_per_pixel = BSP_LCD_BITS_PER_PIXEL,
         .rgb_ele_order = BSP_LCD_COLOR_SPACE,
         .reset_gpio_num = BSP_LCD_RST,
         .vendor_config = &vendor_config,
     };
-    ESP_GOTO_ON_ERROR(esp_lcd_new_panel_jd9165(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel EK79007 failed");
+    ESP_GOTO_ON_ERROR(esp_lcd_new_panel_jd9165(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel JD9165 failed");
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    // Since ESP-IDF v6.0 DMA2D is enabled through a dedicated API instead of the DPI config flag
+    ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(disp_panel), err, TAG, "LCD panel enable DMA2D failed");
+#endif
     ESP_GOTO_ON_ERROR(esp_lcd_panel_reset(disp_panel), err, TAG, "LCD panel reset failed");
     ESP_GOTO_ON_ERROR(esp_lcd_panel_init(disp_panel), err, TAG, "LCD panel init failed");
 #else
@@ -475,7 +488,7 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     const esp_lcd_panel_dev_config_t lcd_dev_config = {
         .reset_gpio_num = BSP_LCD_RST,
         .rgb_ele_order = BSP_LCD_COLOR_SPACE,
-        .bits_per_pixel = 16,
+        .bits_per_pixel = BSP_LCD_BITS_PER_PIXEL,
         .vendor_config = &vendor_config,
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_ili9881c(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel ILI9881C failed");
@@ -606,8 +619,18 @@ static lv_display_t *bsp_display_lcd_init(const bsp_display_cfg_t *cfg)
 static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
 {
     esp_lcd_touch_handle_t tp;
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_touch_new(NULL, &tp));
-    assert(tp);
+    // Touch is a non-critical peripheral: if it fails to come up (e.g. GT911
+    // not responding within its cold-boot window), log it and continue
+    // without touch input rather than aborting the whole system. This is
+    // deliberately NOT routed through BSP_ERROR_CHECK_RETURN_NULL/assert,
+    // which would be fatal regardless of this reasoning.
+    esp_err_t ret = bsp_touch_new(NULL, &tp);
+    if (ret != ESP_OK) {
+        // Logged at debug level: this runs inside bsp_touch_bringup_task's retry
+        // loop, which already reports the final outcome (success or give-up) once.
+        ESP_LOGD(TAG, "Touch controller attempt failed (0x%x)", ret);
+        return NULL;
+    }
 
     /* Add touch input (for selected screen) */
     const lvgl_port_touch_cfg_t touch_cfg = {
@@ -616,6 +639,63 @@ static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
     };
 
     return lvgl_port_add_touch(&touch_cfg);
+}
+
+#define BSP_TOUCH_RETRY_TASK_PERIOD_MS    (2000)
+#define BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS (10) // ~20s of retrying total
+
+static bool s_touch_bringup_started = false;
+
+// The GT911 can occasionally take much longer than any bounded startup
+// timeout to become ready after a true cold power-up, so failed attempts here
+// are expected/self-healing rather than actual faults. The underlying I2C and
+// GT911 drivers log at ESP_LOGE on every failed transaction/attempt, which
+// would otherwise spam the console for as long as this task keeps retrying -
+// mute those two tags for the duration and only report the final outcome.
+static void bsp_touch_bringup_task(void *arg)
+{
+    lv_display_t *disp = (lv_display_t *)arg;
+    lv_indev_t *indev = NULL;
+
+    esp_log_level_set("GT911", ESP_LOG_NONE);
+    esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_NONE);
+
+    for (int attempt = 0; attempt < BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS && indev == NULL; attempt++) {
+        if (bsp_display_lock(0)) {
+            indev = bsp_display_indev_init(disp);
+            bsp_display_unlock();
+        }
+        if (indev == NULL) {
+            vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
+        }
+    }
+
+    esp_log_level_set("GT911", ESP_LOG_INFO);
+    esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_INFO);
+
+    if (indev) {
+        disp_indev = indev;
+        ESP_LOGI(TAG, "Touch controller came up, input now active");
+    } else {
+        ESP_LOGW(TAG, "Touch controller still not responding, giving up retrying");
+    }
+
+    vTaskDelete(NULL);
+}
+
+lv_indev_t *bsp_display_touch_init(void)
+{
+    if (s_disp == NULL) {
+        ESP_LOGE(TAG, "bsp_display_touch_init() called before display was started");
+        return NULL;
+    }
+
+    if (!s_touch_bringup_started) {
+        s_touch_bringup_started = true;
+        xTaskCreate(bsp_touch_bringup_task, "touch_bringup", 4096, s_disp, tskIDLE_PRIORITY + 1, NULL);
+    }
+
+    return disp_indev;
 }
 
 lv_display_t *bsp_display_start(void)
@@ -643,12 +723,11 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg)
 
     assert(cfg != NULL);
     BSP_ERROR_CHECK_RETURN_NULL(lvgl_port_init(&cfg->lvgl_port_cfg));
-
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_display_brightness_init());
-
     BSP_NULL_CHECK(disp = bsp_display_lcd_init(cfg), NULL);
 
-    BSP_NULL_CHECK(disp_indev = bsp_display_indev_init(disp), NULL);
+    /* Touch is brought up later via bsp_display_touch_init(), once the caller is
+     * ready for input (e.g. after the backlight is on), instead of here. */
+    s_disp = disp;
 
     return disp;
 }
