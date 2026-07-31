@@ -10,7 +10,7 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "bsp_board_extra.h"
-#include "lv_demos.h"
+//#include "lv_demos.h"
 
 void app_main(void)
 {
@@ -37,7 +37,7 @@ void app_main(void)
 
     // lv_demo_music();
     // lv_demo_benchmark();
-    lv_demo_widgets();
+    // lv_demo_widgets();
 
     bsp_display_unlock();
 }
