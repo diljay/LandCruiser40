@@ -1,65 +1,51 @@
-# LVGL Demo v9
+# LVGL Demo v9.5.0
 
-[中文版本](./README_CN.md)
-
-This example demonstrates how to port LVGL v9 and conduct performance testing using LVGL's built-in demos. The example utilizes the development board's MIPI-DSI interface. Based on this example, applications based on LVGL v9 can be developed.
-
+This example demonstrates how to port LVGL v9.5.0.
+The example utilizes the development board's MIPI-DSI interface.
 
 ## Getting Started
 
-
 ### Prerequisites
 
-* An ESP32-P4-Function-EV-Board.
-* A 7-inch 1024 x 600 LCD screen powered by the [EK79007](../../docs/_static/esp32-p4-function-ev-board/camera_display_datasheet/display_driver_chip_EK79007AD_datasheet.pdf) IC, accompanied by a 32-pin FPC connection [adapter board](../../docs/_static/esp32-p4-function-ev-board/schematics/esp32-p4-function-ev-board-lcd-subboard-schematics.pdf) ([LCD Specifications](../../docs/_static/esp32-p4-function-ev-board/camera_display_datasheet/display_datasheet.pdf)).
-* A USB-C cable for power supply and programming.
-* Please refer to the following steps for the connection:
-    * **Step 1**. According to the table below, connect the pins on the back of the screen adapter board to the corresponding pins on the development board.
-
-        | Screen Adapter Board | ESP32-P4-Function-EV-Board |
-        | -------------------- | -------------------------- |
-        | 5V (any one)         | 5V (any one)               |
-        | GND (any one)        | GND (any one)              |
-        | PWM                  | GPIO26                     |
-        | LCD_RST              | GPIO27                     |
-
-    * **Step 2**. Connect the FPC of LCD through the `MIPI_DSI` interface.
-    * **Step 3**. Use a USB-C cable to connect the `USB-UART` port to a PC (Used for power supply and viewing serial output).
-    * **Step 4**. Turn on the power switch of the board.
-
+* ESP32-P4 Development Board, 7-inch LCD TouchScreen, Onboard ESP32-C6, Camera Port, Speaker Port
+* https://www.aliexpress.com/item/1005008851890291.html
 
 ### ESP-IDF Required
 
-- This example supports ESP-IDF release/v5.3 and later branches, including ESP-IDF v6.0.x. It has been upgraded to build on ESP-IDF release/v6.0 (tested with v6.0.2).
+- This example supports ESP-IDF v6.0.2.
 - Please follow the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html) to set up the development environment. **We highly recommend** you [Build Your First Project](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#build-your-first-project) to get familiar with ESP-IDF and make sure the environment is set up correctly.
 
-### Get the esp-dev-kits Repository
+### Get the Repository
 
-To start from the examples in esp-dev-kits, clone the repository to the local PC by running the following commands in the terminal:
+To get started, clone the repository to your local PC by running the following command in the terminal:
 
 ```
-git clone --recursive https://github.com/espressif/esp-dev-kits.git
+git clone https://github.com/diljay/LandCruiser40.git
 ```
-
 
 ### Configuration
 
-Run ``idf.py menuconfig`` and go to ``Board Support Package(ESP32-P4)``:
-
+#### Setup esp-idf v6.0.2
 ```
-menuconfig > Component config > Board Support Package
+source /Users/<username>/.espressif/v6.0.2/esp-idf/export.sh
 ```
 
+#### Update Chip Revision Info
+```
+idf.py menuconfig`` and go to ``Component Config > Hardware Settings > Chip revision
+```
+
+Update the chip revision based on your chip's revision version.
+https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/01-chip-identification/index.html
 
 ## How to Use the Example
 
-
 ### Build and Flash the Example
 
-Build the project and flash it to the board, then run monitor tool to view serial output (replace `PORT` with your board's serial port name):
+Build the project and flash it to the board, then run the monitor tool to view serial output:
 
 ```c
-idf.py -p PORT flash monitor
+idf.py build flash monitor
 ```
 
 To exit the serial monitor, type ``Ctrl-]``.
@@ -71,100 +57,110 @@ See the [ESP-IDF Getting Started Guide](https://docs.espressif.com/projects/esp-
 
 - The complete log is as follows:
 
-    ```c
-    I (25) boot: ESP-IDF v5.4-dev-2167-gdef35b1ca7-dirty 2nd stage bootloader
-    I (26) boot: compile time Sep 27 2024 17:00:31
-    I (27) boot: Multicore bootloader
-    I (32) boot: chip revision: v0.1
-    I (35) qio_mode: Enabling default flash chip QIO
-    I (40) boot.esp32p4: SPI Speed      : 80MHz
-    I (45) boot.esp32p4: SPI Mode       : QIO
-    I (49) boot.esp32p4: SPI Flash Size : 16MB
-    I (54) boot: Enabling RNG early entropy source...
-    I (60) boot: Partition Table:
-    I (63) boot: ## Label            Usage          Type ST Offset   Length
-    I (70) boot:  0 nvs              WiFi data        01 02 00009000 00006000
-    I (78) boot:  1 phy_init         RF data          01 01 0000f000 00001000
-    I (85) boot:  2 factory          factory app      00 00 00010000 00800000
-    I (93) boot:  3 storage          Unknown data     01 82 00810000 00700000
-    I (101) boot: End of partition table
-    I (105) esp_image: segment 0: paddr=00010020 vaddr=48060020 size=bacdch (765148) map
-    I (233) esp_image: segment 1: paddr=000cad04 vaddr=30100000 size=00020h (    32) load
-    I (235) esp_image: segment 2: paddr=000cad2c vaddr=30100020 size=0003ch (    60) load
-    I (240) esp_image: segment 3: paddr=000cad70 vaddr=4ff00000 size=052a8h ( 21160) load
-    I (253) esp_image: segment 4: paddr=000d0020 vaddr=48000020 size=5b534h (374068) map
-    I (315) esp_image: segment 5: paddr=0012b55c vaddr=4ff052a8 size=1caa0h (117408) load
-    I (338) esp_image: segment 6: paddr=00148004 vaddr=4ff21d80 size=03074h ( 12404) load
-    I (348) boot: Loaded app from partition at offset 0x10000
-    I (349) boot: Disabling RNG early entropy source...
-    I (360) hex_psram: vendor id    : 0x0d (AP)
-    I (361) hex_psram: Latency      : 0x01 (Fixed)
-    I (361) hex_psram: DriveStr.    : 0x00 (25 Ohm)
-    I (364) hex_psram: dev id       : 0x03 (generation 4)
-    I (370) hex_psram: density      : 0x07 (256 Mbit)
-    I (375) hex_psram: good-die     : 0x06 (Pass)
-    I (380) hex_psram: SRF          : 0x02 (Slow Refresh)
-    I (386) hex_psram: BurstType    : 0x00 ( Wrap)
-    I (391) hex_psram: BurstLen     : 0x03 (2048 Byte)
-    I (397) hex_psram: BitMode      : 0x01 (X16 Mode)
-    I (402) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
-    I (408) hex_psram: DriveStrength: 0x00 (1/1)
-    I (413) MSPI DQS: tuning success, best phase id is 2
-    I (597) MSPI DQS: tuning success, best delayline id is 11
+    ```
+    Executing action: monitor
+    Serial port /dev/cu.usbmodem101:
+    Connecting...
+    Detecting chip type... ESP32-P4
+    Running idf_monitor in directory /Users/dilhan/Projects/ESP_P4/LandCruiser40
+    Executing "/Users/dilhan/.espressif/python_env/idf6.0_py3.14_env/bin/python /Users/dilhan/.espressif/v6.0.2/esp-idf/tools/idf_monitor.py -p /dev/cu.usbmodem101 -b 115200 --toolchain-prefix riscv32-esp-elf- --target esp32p4 --revision 100 --decode-panic backtrace -m '/Users/dilhan/.espressif/python_env/idf6.0_py3.14_env/bin/python' '/Users/dilhan/.espressif/v6.0.2/esp-idf/tools/idf.py'"...
+    --- esp-idf-monitor 1.9.0 on /dev/cu.usbmodem101 115200
+    --- Warning: No ELF files found. Please provide the ELF file paths, required for binary log decoding.
+    --- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+    ESP-ROM:esp32p4-eco2-20240710
+    Build:Jul 10 2024
+    rst:0x17 (CHIP_USB_UART_RESET),boot:0x30f (SPI_FAST_FLASH_BOOT)
+    Core0 Saved PC:0x4fc098f6
+    Core1 Saved PC:0x4fc058e0
+    SPI mode:DIO, clock div:1
+    load:0x4ff33ce0,len:0x1738
+    load:0x4ff28ed0,len:0xfb8
+    load:0x4ff2bbd0,len:0x36cc
+    entry 0x4ff28eda
+    I (27) boot: ESP-IDF v6.0.2 2nd stage bootloader
+    I (28) boot: compile time Jul 31 2026 16:14:56
+    I (28) boot: Multicore bootloader
+    I (30) boot: chip revision: v1.0
+    I (31) boot: efuse block revision: v0.3
+    I (34) qio_mode: Enabling default flash chip QIO
+    I (39) boot.esp32p4: SPI Speed      : 80MHz
+    I (42) boot.esp32p4: SPI Mode       : QIO
+    I (46) boot.esp32p4: SPI Flash Size : 16MB
+    I (50) boot: Enabling RNG early entropy source...
+    I (55) boot: Partition Table:
+    I (57) boot: ## Label            Usage          Type ST Offset   Length
+    I (63) boot:  0 nvs              WiFi data        01 02 0000b000 00006000
+    I (70) boot:  1 phy_init         RF data          01 01 00011000 00001000
+    I (76) boot:  2 factory          factory app      00 00 00020000 00800000
+    I (83) boot:  3 storage          Unknown data     01 82 00820000 00700000
+    I (90) boot: End of partition table
+    I (93) esp_image: segment 0: paddr=00020020 vaddr=48050020 size=13dcch ( 81356) map
+    I (110) esp_image: segment 1: paddr=00033df4 vaddr=30100000 size=00088h (   136) load
+    I (112) esp_image: segment 2: paddr=00033e84 vaddr=4ff00000 size=0c194h ( 49556) load
+    I (122) esp_image: segment 3: paddr=00040020 vaddr=48000020 size=4f2e0h (324320) map
+    I (160) esp_image: segment 4: paddr=0008f308 vaddr=4ff0c194 size=10cc4h ( 68804) load
+    I (171) esp_image: segment 5: paddr=0009ffd4 vaddr=4ff1ce80 size=03f08h ( 16136) load
+    I (175) esp_image: segment 6: paddr=000a3ee4 vaddr=50108080 size=00024h (    36) load
+    I (182) boot: Loaded app from partition at offset 0x20000
+    I (183) boot: Disabling RNG early entropy source...
+    I (198) hex_psram: vendor id    : 0x0d (AP)
+    I (198) hex_psram: Latency      : 0x01 (Fixed)
+    I (199) hex_psram: DriveStr.    : 0x00 (25 Ohm)
+    I (199) hex_psram: dev id       : 0x03 (generation 4)
+    I (204) hex_psram: density      : 0x07 (256 Mbit)
+    I (208) hex_psram: good-die     : 0x06 (Pass)
+    I (212) hex_psram: SRF          : 0x02 (Slow Refresh)
+    I (217) hex_psram: BurstType    : 0x00 ( Wrap)
+    I (221) hex_psram: BurstLen     : 0x03 (2048 Byte)
+    I (226) hex_psram: BitMode      : 0x01 (X16 Mode)
+    I (230) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
+    I (235) hex_psram: DriveStrength: 0x00 (1/1)
+    I (239) MSPI Timing: Enter psram timing tuning
     I esp_psram: Found 32MB PSRAM device
     I esp_psram: Speed: 200MHz
-    I (597) mmu_psram: flash_drom_paddr_start: 0x10000
-    I (640) mmu_psram: flash_irom_paddr_start: 0xd0000
-    I (659) hex_psram: psram CS IO is dedicated
-    I (659) cpu_start: Multicore app
-    I (1091) esp_psram: SPI SRAM memory test OK
-    W (1101) clk: esp_perip_clk_init() has not been implemented yet
-    I (1108) cpu_start: Pro cpu start user code
-    I (1108) cpu_start: cpu freq: 360000000 Hz
-    I (1108) app_init: Application information:
-    I (1111) app_init: Project name:     lvgl_demo_v9
-    I (1117) app_init: App version:      7e53cd00-dirty
-    I (1122) app_init: Compile time:     Sep 27 2024 17:00:22
-    I (1128) app_init: ELF file SHA256:  506da7290...
-    I (1134) app_init: ESP-IDF:          v5.4-dev-2167-gdef35b1ca7-dirty
-    I (1141) efuse_init: Min chip rev:     v0.1
-    I (1146) efuse_init: Max chip rev:     v0.99 
-    I (1151) efuse_init: Chip rev:         v0.1
-    I (1155) heap_init: Initializing. RAM available for dynamic allocation:
-    I (1163) heap_init: At 4FF26B50 len 00014470 (81 KiB): RAM
-    I (1169) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
-    I (1175) heap_init: At 4FF40000 len 00040000 (256 KiB): RAM
-    I (1182) heap_init: At 50108080 len 00007F80 (31 KiB): RTCRAM
-    I (1188) heap_init: At 3010005C len 00001FA4 (7 KiB): TCM
-    I (1194) esp_psram: Adding pool of 30848K of PSRAM memory to heap allocator
-    I (1202) spi_flash: detected chip: generic
-    I (1206) spi_flash: flash io: qio
-    W (1210) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`
-    I (1221) main_task: Started on CPU0
-    I (1244) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
-    I (1244) main_task: Calling app_main()
-    I (1246) LVGL: Starting LVGL task
-    W (1250) ledc: GPIO 26 is not usable, maybe conflict with others
-    I (1257) ESP32_P4_EV: MIPI DSI PHY Powered on
-    I (1263) ESP32_P4_EV: Install MIPI DSI LCD control panel
-    I (1268) ESP32_P4_EV: Install EK79007 LCD control panel
-    I (1274) ek79007: version: 0.1.0
-    I (1278) gpio: GPIO[27]| InputEn: 0| OutputEn: 1| OpenDrain: 0| Pullup: 0| Pulldown: 0| Intr:0 
-    I (1444) ESP32_P4_EV: Display initialized
-    E (1446) lcd_panel: esp_lcd_panel_swap_xy(50): swap_xy is not supported by this panel
-    W (1446) GT911: Unable to initialize the I2C address
-    I (1452) GT911: TouchPad_ID:0x39,0x31,0x31
-    I (1456) GT911: TouchPad_Config_Version:89
-    I (1461) ESP32_P4_EV: Setting LCD backlight: 100%
-    I (1542) main_task: Returned from app_main()
-    ...
+    I (417) mmu_psram: .rodata xip on psram
+    I (432) mmu_psram: .text xip on psram
+    I (435) hex_psram: psram CS IO is dedicated
+    I (436) cpu_start: Multicore app
+    I (920) esp_psram: SPI SRAM memory test OK
+    I (930) cpu_start: GPIO 38 and 37 are used as console UART I/O pins
+    I (930) cpu_start: Pro cpu start user code
+    I (931) cpu_start: cpu freq: 360000000 Hz
+    I (932) app_init: Application information:
+    I (936) app_init: Project name:     LandCruiser40
+    I (941) app_init: App version:      998827e-dirty
+    I (945) app_init: Compile time:     Jul 31 2026 16:14:15
+    I (950) app_init: ELF file SHA256:  5d932b14f...
+    I (954) app_init: ESP-IDF:          v6.0.2
+    I (958) efuse_init: Min chip rev:     v1.0
+    I (962) efuse_init: Max chip rev:     v1.99 
+    I (966) efuse_init: Chip rev:         v1.0
+    I (970) heap_init: Initializing. RAM available for dynamic allocation:
+    I (976) heap_init: At 4FF23140 len 00017E80 (95 KiB): RETENT_RAM
+    I (982) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+    I (987) heap_init: At 4FF40000 len 00040000 (256 KiB): RAM
+    I (992) heap_init: At 501080A4 len 00007F5C (31 KiB): RTCRAM
+    I (998) heap_init: At 30100088 len 00001F78 (7 KiB): SPM
+    I (1003) esp_psram: Adding pool of 32320K of PSRAM memory to heap allocator
+    I (1009) esp_psram: Adding pool of 3K of PSRAM memory gap generated due to end address alignment of irom to the heap allocator
+    I (1020) esp_psram: Adding pool of 48K of PSRAM memory gap generated due to end address alignment of drom to the heap allocator
+    I (1032) spi_flash: detected chip: boya
+    I (1035) spi_flash: flash io: qio
+    I (1038) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+    I (1045) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+    I (1051) main_task: Started on CPU0
+    I (1054) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+    I (1062) main_task: Calling app_main()
+    I (1066) LVGL: Starting LVGL task
+    I (1069) ESP32_P4_EV: MIPI DSI PHY Powered on
+    I (1074) ESP32_P4_EV: Install MIPI DSI LCD control panel
+    I (1078) ESP32_P4_EV: Install JD9165 LCD control panel
+    I (1082) jd9165: version: 1.0.2
+    I (1400) ESP32_P4_EV: Display initialized
+    I (1406) ESP32_P4_EV: Setting LCD backlight: 100%
+    I (1429) main_task: Returned from app_main()
     ```
 
 ## Technical Support and Feedback
-
-Please use the following feedback channels:
-
-- For technical queries, go to the [esp32.com](https://esp32.com/viewforum.php?f=22) forum.
-- For a feature request or bug report, create a [GitHub issue](https://github.com/espressif/esp-dev-kits/issues).
-
-We will get back to you as soon as possible.
+Create an issue:
+https://github.com/diljay/LandCruiser40/issues
