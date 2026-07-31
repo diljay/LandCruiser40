@@ -6,6 +6,7 @@ extern "C" {
 
 typedef enum {
     APP_STATE_BOOTUP = 0,
+    APP_STATE_MAIN,
     APP_STATE_COUNT
 } app_state_t;
 

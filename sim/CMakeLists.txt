@@ -38,6 +38,7 @@ add_executable(landcruiser_sim
     ${STATEMACHINE_DIR}/src/app_state_machine.c
     ${VIEWMANAGER_DIR}/src/view_manager.c
     ${VIEWMANAGER_DIR}/src/screen_bootup.c
+    ${VIEWMANAGER_DIR}/src/screen_main.c
 )
 
 target_include_directories(landcruiser_sim PRIVATE
