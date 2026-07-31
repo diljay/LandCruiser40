@@ -616,31 +616,6 @@ static lv_display_t *bsp_display_lcd_init(const bsp_display_cfg_t *cfg)
     return lvgl_port_add_disp_dsi(&disp_cfg, &dpi_cfg);
 }
 
-static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
-{
-    esp_lcd_touch_handle_t tp;
-    // Touch is a non-critical peripheral: if it fails to come up (e.g. GT911
-    // not responding within its cold-boot window), log it and continue
-    // without touch input rather than aborting the whole system. This is
-    // deliberately NOT routed through BSP_ERROR_CHECK_RETURN_NULL/assert,
-    // which would be fatal regardless of this reasoning.
-    esp_err_t ret = bsp_touch_new(NULL, &tp);
-    if (ret != ESP_OK) {
-        // Logged at debug level: this runs inside bsp_touch_bringup_task's retry
-        // loop, which already reports the final outcome (success or give-up) once.
-        ESP_LOGD(TAG, "Touch controller attempt failed (0x%x)", ret);
-        return NULL;
-    }
-
-    /* Add touch input (for selected screen) */
-    const lvgl_port_touch_cfg_t touch_cfg = {
-        .disp = disp,
-        .handle = tp,
-    };
-
-    return lvgl_port_add_touch(&touch_cfg);
-}
-
 #define BSP_TOUCH_RETRY_TASK_PERIOD_MS    (2000)
 #define BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS (10) // ~20s of retrying total
 
@@ -652,26 +627,43 @@ static bool s_touch_bringup_started = false;
 // GT911 drivers log at ESP_LOGE on every failed transaction/attempt, which
 // would otherwise spam the console for as long as this task keeps retrying -
 // mute those two tags for the duration and only report the final outcome.
+//
+// bsp_touch_new() is pure I2C/GPIO work and does not touch any LVGL state, so
+// it deliberately runs WITHOUT the display lock held - each attempt can block
+// for over a second waiting on I2C, and holding the LVGL mutex for that long
+// would stall lv_timer_handler() (rendering, animations, perf monitor, ...)
+// for the whole retry window. The lock is only taken right at the end, just
+// long enough to register the input device once the handle is ready.
 static void bsp_touch_bringup_task(void *arg)
 {
     lv_display_t *disp = (lv_display_t *)arg;
-    lv_indev_t *indev = NULL;
+    esp_lcd_touch_handle_t tp = NULL;
 
     esp_log_level_set("GT911", ESP_LOG_NONE);
     esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_NONE);
 
-    for (int attempt = 0; attempt < BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS && indev == NULL; attempt++) {
-        if (bsp_display_lock(0)) {
-            indev = bsp_display_indev_init(disp);
-            bsp_display_unlock();
+    for (int attempt = 0; attempt < BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS; attempt++) {
+        if (bsp_touch_new(NULL, &tp) == ESP_OK) {
+            break;
         }
-        if (indev == NULL) {
-            vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
-        }
+        tp = NULL;
+        vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
     }
 
     esp_log_level_set("GT911", ESP_LOG_INFO);
     esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_INFO);
+
+    lv_indev_t *indev = NULL;
+    if (tp != NULL) {
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = disp,
+            .handle = tp,
+        };
+        if (bsp_display_lock(0)) {
+            indev = lvgl_port_add_touch(&touch_cfg);
+            bsp_display_unlock();
+        }
+    }
 
     if (indev) {
         disp_indev = indev;
