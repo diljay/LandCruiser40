@@ -10,6 +10,7 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "bsp_board_extra.h"
+#include "app_core.h"
 
 void app_main(void)
 {
@@ -34,7 +35,7 @@ void app_main(void)
 
     bsp_display_lock(0);
 
-    // LVGL Application Code
+    app_core_init();
 
     bsp_display_unlock();
 }

@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS main.c lvgl_cpu_monitor.c
-    INCLUDE_DIRS .)
+    INCLUDE_DIRS .
+    REQUIRES app_core nvs_flash espressif__esp32_p4_function_ev_board bsp_extra)
 
 # lvgl_cpu_monitor_get_idle_percent() is only referenced indirectly, via the
 # -DLV_SYSMON_GET_IDLE define below, so nothing in this component's own object

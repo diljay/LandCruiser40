@@ -6,6 +6,8 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 set(EXTRA_COMPONENT_DIRS
     ./common_components
+    ./components
+    ./components/sensor
     )
     
 add_compile_options(-Wno-format -Wno-error=attributes)

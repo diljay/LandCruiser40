@@ -161,6 +161,44 @@ See the [ESP-IDF Getting Started Guide](https://docs.espressif.com/projects/esp-
     I (1429) main_task: Returned from app_main()
     ```
 
+## Simulation Build (SDL2)
+
+The UI (state machine, view manager, screens, sensor models under `components/`) is
+shared between the target build and a desktop simulator, so you can iterate on
+screens without flashing hardware. The simulator opens an SDL2 window at the
+same 1024x600 resolution as the physical panel.
+
+### Prerequisites
+
+- CMake >= 3.16
+- A C compiler (clang/gcc)
+- SDL2
+
+On macOS:
+```
+brew install sdl2
+```
+
+### Build
+
+```
+cd sim
+cmake -S . -B build
+cmake --build build -j 8
+```
+
+The first configure fetches LVGL v9.5.0 via CMake `FetchContent`, so it takes
+noticeably longer than subsequent runs.
+
+### Run
+
+```
+./build/landcruiser_sim
+```
+
+This opens a window showing the bootup screen with the live speed label. Quit
+with Ctrl-C in the terminal or by closing the window.
+
 ## Technical Support and Feedback
 Create an issue:
 https://github.com/diljay/LandCruiser40/issues
