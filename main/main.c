@@ -19,7 +19,12 @@ void app_main(void)
         .buffer_size = BSP_LCD_DRAW_BUFF_SIZE,
         .double_buffer = BSP_LCD_DRAW_BUFF_DOUBLE,
         .flags = {
+#if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
+            // esp_lvgl_port only supports DMA-capable draw buffers in RGB565
+            .buff_dma = false,
+#else
             .buff_dma = true,
+#endif
             .buff_spiram = false,
             .sw_rotate = false,
         }

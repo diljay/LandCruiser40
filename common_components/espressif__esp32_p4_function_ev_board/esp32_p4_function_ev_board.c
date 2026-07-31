@@ -36,17 +36,6 @@
 
 static const char *TAG = "ESP32_P4_EV";
 
-// TEMPORARY DIAGNOSTIC TOGGLE: set to 1 to drive the DSI host's hardware pattern
-// generator instead of the real framebuffer, to isolate DPI/panel color issues
-// from LVGL/DMA2D issues. Set back to 0 (or remove) once diagnosis is complete.
-#define BSP_DIAG_DSI_TEST_PATTERN 0
-// TEMPORARY DIAGNOSTIC TOGGLE: set to 0 to skip esp_lcd_dpi_panel_enable_dma2d(),
-// forcing the LVGL flush copy to fall back to plain CPU memcpy. If colors/lines
-// clear up with this at 0, the bug is in the DMA2D fbcpy path. Set back to 1
-// (or remove the guard) once diagnosis is complete.
-// Ruled out: CPU memcpy copy still showed wrong colors, so DMA2D is not the cause.
-#define BSP_DIAG_ENABLE_DMA2D 1
-
 #if (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 static lv_indev_t *disp_indev = NULL;
 #endif // (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
@@ -472,19 +461,12 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         .vendor_config = &vendor_config,
     };
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_jd9165(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel JD9165 failed");
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) && BSP_DIAG_ENABLE_DMA2D
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     // Since ESP-IDF v6.0 DMA2D is enabled through a dedicated API instead of the DPI config flag
     ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(disp_panel), err, TAG, "LCD panel enable DMA2D failed");
 #endif
     ESP_GOTO_ON_ERROR(esp_lcd_panel_reset(disp_panel), err, TAG, "LCD panel reset failed");
     ESP_GOTO_ON_ERROR(esp_lcd_panel_init(disp_panel), err, TAG, "LCD panel init failed");
-#if BSP_DIAG_DSI_TEST_PATTERN
-    // TEMPORARY DIAGNOSTIC: drive the DSI host's own pattern generator, bypassing
-    // LVGL/DMA2D/framebuffer entirely. If colors/lines are still wrong here, the
-    // bug is in the DPI color-coding <-> panel COLMOD/MADCTL path, not the app.
-    // Remove this block once the diagnosis is complete.
-    ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_set_pattern(disp_panel, MIPI_DSI_PATTERN_BAR_VERTICAL), err, TAG, "LCD panel set test pattern failed");
-#endif
 #else
     // create ILI9881C control panel
     ESP_LOGI(TAG, "Install ILI9881C LCD control panel");
