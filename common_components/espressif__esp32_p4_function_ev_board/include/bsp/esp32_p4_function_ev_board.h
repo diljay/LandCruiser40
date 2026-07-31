@@ -303,9 +303,21 @@ lv_display_t *bsp_display_start(void);
 lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg);
 
 /**
+ * @brief Bring up the touch input device
+ *
+ * The LVGL input device is NOT initialized by bsp_display_start()/bsp_display_start_with_config()
+ * any more. Call this explicitly once the display is ready to accept input, e.g. after
+ * bsp_display_backlight_on(), so the GT911 gets extra time to finish its cold-boot before the
+ * first I2C transaction. If the controller doesn't respond yet, it is retried in the background.
+ *
+ * @return Pointer to LVGL input device, or NULL if not yet available (a background retry is in progress)
+ */
+lv_indev_t *bsp_display_touch_init(void);
+
+/**
  * @brief Get pointer to input device (touch, buttons, ...)
  *
- * @note The LVGL input device is initialized in bsp_display_start() function.
+ * @note The LVGL input device is initialized by calling bsp_display_touch_init().
  *
  * @return Pointer to LVGL input device or NULL when not initialized
  */

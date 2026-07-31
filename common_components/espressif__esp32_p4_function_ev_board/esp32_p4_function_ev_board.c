@@ -38,6 +38,7 @@ static const char *TAG = "ESP32_P4_EV";
 
 #if (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 static lv_indev_t *disp_indev = NULL;
+static lv_display_t *s_disp = NULL;
 #endif // (BSP_CONFIG_NO_GRAPHIC_LIB == 0)
 
 sdmmc_card_t *bsp_sdcard = NULL;    // Global uSD card handler
@@ -625,7 +626,9 @@ static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
     // which would be fatal regardless of this reasoning.
     esp_err_t ret = bsp_touch_new(NULL, &tp);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Touch controller init failed (0x%x), continuing without touch input", ret);
+        // Logged at debug level: this runs inside bsp_touch_bringup_task's retry
+        // loop, which already reports the final outcome (success or give-up) once.
+        ESP_LOGD(TAG, "Touch controller attempt failed (0x%x)", ret);
         return NULL;
     }
 
@@ -638,35 +641,61 @@ static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
     return lvgl_port_add_touch(&touch_cfg);
 }
 
-#define BSP_TOUCH_RETRY_TASK_PERIOD_MS   (2000)
+#define BSP_TOUCH_RETRY_TASK_PERIOD_MS    (2000)
 #define BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS (10) // ~20s of retrying total
 
-// Retries touch controller bring-up in the background after a failed
-// bsp_display_indev_init() at boot. The GT911 can occasionally take longer
-// than any bounded startup timeout to become ready after a true cold
-// power-up; this lets touch come online a little late instead of staying
-// unavailable for the whole session.
-static void bsp_touch_retry_task(void *arg)
+static bool s_touch_bringup_started = false;
+
+// The GT911 can occasionally take much longer than any bounded startup
+// timeout to become ready after a true cold power-up, so failed attempts here
+// are expected/self-healing rather than actual faults. The underlying I2C and
+// GT911 drivers log at ESP_LOGE on every failed transaction/attempt, which
+// would otherwise spam the console for as long as this task keeps retrying -
+// mute those two tags for the duration and only report the final outcome.
+static void bsp_touch_bringup_task(void *arg)
 {
     lv_display_t *disp = (lv_display_t *)arg;
     lv_indev_t *indev = NULL;
 
+    esp_log_level_set("GT911", ESP_LOG_NONE);
+    esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_NONE);
+
     for (int attempt = 0; attempt < BSP_TOUCH_RETRY_TASK_MAX_ATTEMPTS && indev == NULL; attempt++) {
-        vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
         if (bsp_display_lock(0)) {
             indev = bsp_display_indev_init(disp);
             bsp_display_unlock();
         }
+        if (indev == NULL) {
+            vTaskDelay(pdMS_TO_TICKS(BSP_TOUCH_RETRY_TASK_PERIOD_MS));
+        }
     }
+
+    esp_log_level_set("GT911", ESP_LOG_INFO);
+    esp_log_level_set("lcd_panel.io.i2c", ESP_LOG_INFO);
 
     if (indev) {
         disp_indev = indev;
-        ESP_LOGI(TAG, "Touch controller came up on retry, input now active");
+        ESP_LOGI(TAG, "Touch controller came up, input now active");
     } else {
         ESP_LOGW(TAG, "Touch controller still not responding, giving up retrying");
     }
 
     vTaskDelete(NULL);
+}
+
+lv_indev_t *bsp_display_touch_init(void)
+{
+    if (s_disp == NULL) {
+        ESP_LOGE(TAG, "bsp_display_touch_init() called before display was started");
+        return NULL;
+    }
+
+    if (!s_touch_bringup_started) {
+        s_touch_bringup_started = true;
+        xTaskCreate(bsp_touch_bringup_task, "touch_bringup", 4096, s_disp, tskIDLE_PRIORITY + 1, NULL);
+    }
+
+    return disp_indev;
 }
 
 lv_display_t *bsp_display_start(void)
@@ -696,11 +725,9 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg)
     BSP_ERROR_CHECK_RETURN_NULL(lvgl_port_init(&cfg->lvgl_port_cfg));
     BSP_NULL_CHECK(disp = bsp_display_lcd_init(cfg), NULL);
 
-    disp_indev = bsp_display_indev_init(disp);
-    if (disp_indev == NULL) {
-        ESP_LOGW(TAG, "Display started without touch input, will keep retrying in the background");
-        xTaskCreate(bsp_touch_retry_task, "touch_retry", 4096, disp, tskIDLE_PRIORITY + 1, NULL);
-    }
+    /* Touch is brought up later via bsp_display_touch_init(), once the caller is
+     * ready for input (e.g. after the backlight is on), instead of here. */
+    s_disp = disp;
 
     return disp;
 }

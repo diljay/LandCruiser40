@@ -31,6 +31,7 @@ void app_main(void)
     };
     bsp_display_start_with_config(&cfg);
     bsp_display_backlight_on();
+    bsp_display_touch_init();
 
     bsp_display_lock(0);
 
